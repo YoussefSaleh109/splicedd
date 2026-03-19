@@ -93,7 +93,96 @@ export type SpliceSample = {
   duration: number,
   instrument: string | null,
   key: MusicKey | null,
-  asset_category_slug: "oneshot" | "loop"
+  asset_category_slug: "oneshot" | "loop",
+  has_similar_sounds?: boolean
+}
+
+/**
+ * Creates a search request filtered by parent pack UUID (browse all samples in a pack).
+ */
+export function createPackBrowseRequest(packUuid: string): SpliceSearchRequest {
+  const req = createSearchRequest("");
+  req.variables.filepath = "";
+  (req.variables as any).parent_asset_uuid = packUuid;
+  (req.variables as any).parent_asset_type = "pack";
+  req.variables.limit = 100;
+  return req;
+}
+
+/**
+ * Creates a GraphQL request to find similar sounds for a given sample UUID.
+ */
+export function createSimilarSoundsRequest(sampleUuid: string) {
+  return {
+    operationName: "SimilarSounds",
+    query: `query SimilarSounds($uuid: GUID!, $limit: Int = 20) {
+  assetSimilar(uuid: $uuid, pagination: {limit: $limit}) {
+    items {
+      ... on SampleAsset {
+        uuid
+        name
+        bpm
+        chord_type
+        duration
+        instrument
+        key
+        asset_category_slug
+        has_similar_sounds
+        tags {
+          uuid
+          label
+          taxonomy { uuid name __typename }
+          __typename
+        }
+        files {
+          name
+          path
+          asset_file_type_slug
+          url
+          __typename
+        }
+        __typename
+      }
+      ... on IAssetChild {
+        parents(filter: {asset_type_slug: pack}) {
+          items {
+            ... on PackAsset {
+              uuid
+              name
+              permalink_base_url
+              files {
+                path
+                asset_file_type_slug
+                url
+                __typename
+              }
+              __typename
+            }
+            __typename
+          }
+          __typename
+        }
+        __typename
+      }
+      __typename
+    }
+    pagination_metadata {
+      currentPage
+      totalPages
+      __typename
+    }
+    response_metadata {
+      records
+      __typename
+    }
+    __typename
+  }
+}`,
+    variables: {
+      uuid: sampleUuid,
+      limit: 20
+    }
+  };
 }
 
 export type SpliceFile = {

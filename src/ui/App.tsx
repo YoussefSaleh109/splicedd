@@ -7,7 +7,7 @@ import { CircularProgress, Input, Modal, Pagination, Popover, PopoverContent, Po
 import { fetch } from '@tauri-apps/api/http';
 
 import { cfg } from "../config";
-import { GRAPHQL_URL, SpliceSample, SpliceSearchResponse, createSearchRequest } from "../splice/api";
+import { GRAPHQL_URL, SpliceSample, SpliceSearchResponse, createSearchRequest, createPackBrowseRequest, createSimilarSoundsRequest } from "../splice/api";
 import { ChordType, MusicKey, SpliceSampleType, SpliceSortBy, SpliceTag } from "../splice/entities";
 
 import SampleListEntry from "./components/SampleListEntry";
@@ -60,11 +60,85 @@ function App() {
   const [batchMode, setBatchMode] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState(new Set<string>());
 
+  const [browsingPack, setBrowsingPack] = useState<string | null>(null);
+
   // Load favorites and download history on startup
   useEffect(() => {
     loadFavorites();
     loadDownloadHistory();
   }, []);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't trigger if user is typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        // Toggle play/pause on current player
+        if (playerState) {
+          pbCtx.cancellation?.();
+          setPlayerState(null);
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [playerState, pbCtx]);
+
+  async function handleBrowsePack(packUuid: string, packName: string) {
+    setBrowsingPack(packName);
+    setSearchLoading(true);
+
+    try {
+      const payload = createPackBrowseRequest(packUuid);
+      const resp = await fetch<SpliceSearchResponse>(GRAPHQL_URL, {
+        method: "POST",
+        body: { type: "Json", payload }
+      });
+
+      const data = resp.data.data.assetsSearch;
+      setResults(data.items);
+      setResultCount(data.response_metadata.records);
+      setCurrentPage(1);
+      setTotalPages(data.pagination_metadata.totalPages);
+      showToast(`Browsing pack: ${packName}`, "info");
+    } catch (err) {
+      showToast(`Failed to load pack: ${err}`, "error");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function handleSimilarSounds(sampleUuid: string) {
+    setSearchLoading(true);
+    setBrowsingPack(null);
+
+    try {
+      const payload = createSimilarSoundsRequest(sampleUuid);
+      const resp = await fetch<any>(GRAPHQL_URL, {
+        method: "POST",
+        body: { type: "Json", payload }
+      });
+
+      const data = resp.data.data.assetSimilar;
+      if (data && data.items) {
+        setResults(data.items);
+        setResultCount(data.response_metadata?.records || data.items.length);
+        setCurrentPage(1);
+        setTotalPages(1);
+        showToast(`Found ${data.items.length} similar sounds`, "info");
+      } else {
+        showToast("No similar sounds found", "info");
+      }
+    } catch (err) {
+      showToast(`Failed to find similar sounds: ${err}`, "error");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
 
   useEffect(() => {
     updateSearch(query);
@@ -361,8 +435,20 @@ function App() {
         >
               <div className="flex justify-between">
                 <div className="space-y-1">
-                  <h4 className="text-medium font-medium">Samples</h4>
-                  <p className="text-small text-default-400">Found {resultCount} sample{results.length != 1 ? "s" : ""} in total.</p>
+                  <h4 className="text-medium font-medium">
+                    {browsingPack ? `Pack: ${browsingPack}` : "Samples"}
+                  </h4>
+                  <div className="flex items-center gap-2">
+                    <p className="text-small text-default-400">Found {resultCount} sample{results.length != 1 ? "s" : ""} in total.</p>
+                    {browsingPack && (
+                      <button
+                        onClick={() => { setBrowsingPack(null); updateSearch(query, true); }}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        ← Back to search
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div> { searchLoading && <CircularProgress aria-label="Loading results..."/> } </div>
@@ -374,6 +460,8 @@ function App() {
                   key={x.uuid}
                   sample={x}
                   onTagClick={handleTagClick}
+                  onPackBrowse={handleBrowsePack}
+                  onSimilarSounds={handleSimilarSounds}
                   ctx={pbCtx}
                   batchMode={batchMode}
                   isSelected={selectedSamples.has(x.uuid)}

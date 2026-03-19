@@ -21,6 +21,7 @@ import { getCachedAudio, setCachedAudio, hasCachedAudio } from "../audioCache";
 import { showToast } from "./Toast";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "../favorites";
 import { isDownloaded, addToHistory } from "../downloadHistory";
+import Waveform from "./Waveform";
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -28,6 +29,8 @@ const getChordTypeDisplay = (type: string | null) =>
   type == null ? "" : type == "major" ? " Major" : " Minor";
 
 export type TagClickHandler = (tag: SpliceTag) => void;
+export type PackBrowseHandler = (packUuid: string, packName: string) => void;
+export type SimilarSoundsHandler = (sampleUuid: string) => void;
 
 /**
  * Fetches a URL with timeout and retry logic.
@@ -70,10 +73,12 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
  * Provides a view describing a Splice sample.
  */
 export default function SampleListEntry(
-  { sample, ctx, onTagClick, batchMode, isSelected, onSelectToggle }: {
+  { sample, ctx, onTagClick, onPackBrowse, onSimilarSounds, batchMode, isSelected, onSelectToggle }: {
     sample: SpliceSample,
     ctx: SamplePlaybackContext,
     onTagClick: TagClickHandler,
+    onPackBrowse?: PackBrowseHandler,
+    onSimilarSounds?: SimilarSoundsHandler,
     batchMode?: boolean,
     isSelected?: boolean,
     onSelectToggle?: (uuid: string) => void
@@ -327,6 +332,45 @@ export default function SampleListEntry(
             {x.label}
           </Chip>
         ))}</div>
+      </div>
+
+      {/* waveform */}
+      <div className="hidden sm:block" onMouseDown={handleDrag}>
+        {(() => {
+          const waveformFile = sample.files.find(x => x.asset_file_type_slug === "waveform");
+          // Waveform data is a URL — we show a placeholder bar for now
+          // The actual waveform data would need to be fetched and parsed
+          return <Waveform
+            data={Array.from({length: 40}, () => Math.random() * 0.8 + 0.2)}
+            progress={0}
+            width={120}
+            height={24}
+          />;
+        })()}
+      </div>
+
+      {/* action buttons */}
+      <div className="flex gap-1 items-center" data-draggable="false">
+        {sample.has_similar_sounds && onSimilarSounds && (
+          <Tooltip content="Find similar sounds">
+            <button
+              onClick={(e) => { e.stopPropagation(); onSimilarSounds(sample.uuid); }}
+              className="text-xs px-2 py-1 rounded bg-foreground-100 hover:bg-foreground-200 text-foreground-600 transition-colors"
+            >
+              Similar
+            </button>
+          </Tooltip>
+        )}
+        {pack && onPackBrowse && (
+          <Tooltip content={`Browse all samples in ${pack.name}`}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onPackBrowse(pack.uuid, pack.name); }}
+              className="text-xs px-2 py-1 rounded bg-foreground-100 hover:bg-foreground-200 text-foreground-600 transition-colors"
+            >
+              Pack
+            </button>
+          </Tooltip>
+        )}
       </div>
 
       {/* other metadata */}
