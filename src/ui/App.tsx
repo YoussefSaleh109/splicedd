@@ -13,6 +13,8 @@ import { ChordType, MusicKey, SpliceSampleType, SpliceSortBy, SpliceTag } from "
 import SampleListEntry from "./components/SampleListEntry";
 import SettingsModalContent from "./components/SettingsModalContent";
 import KeyScaleSelection from "./components/KeyScaleSelection";
+import PlayerBar, { PlayerState } from "./components/PlayerBar";
+import ToastContainer from "./components/Toast";
 import { SamplePlaybackCancellation, SamplePlaybackContext } from "./playback";
 
 function App() {
@@ -62,9 +64,11 @@ function App() {
   ]); 
 
   const [smplCancellation, smplSetCancellation] = useState<SamplePlaybackCancellation | null>(null);
+  const [playerState, setPlayerState] = useState<PlayerState | null>(null);
   const pbCtx: SamplePlaybackContext = {
     cancellation: smplCancellation,
-    setCancellation: smplSetCancellation
+    setCancellation: smplSetCancellation,
+    setPlayerState
   }
 
   function ensureContraintsGathered() {
@@ -173,7 +177,8 @@ function App() {
   }
 
   return (
-    <main className="flex flex-col gap-2 m-8 h-screen">
+    <main className="flex flex-col gap-2 m-8 h-screen pb-20">
+      <ToastContainer />
       <Modal size="3xl" isDismissable={false} hideCloseButton={!cfg().configured}
             isOpen={settings.isOpen} onOpenChange={settings.onOpenChange}
       >
@@ -356,6 +361,14 @@ function App() {
               <p className="text-foreground-400">Waiting for your command!</p>
             </div>
       }
+
+      <PlayerBar
+        playerState={playerState}
+        onStop={() => {
+          setPlayerState(null);
+          smplCancellation?.();
+        }}
+      />
     </main>
   );
 }

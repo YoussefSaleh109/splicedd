@@ -16,11 +16,52 @@ import { SamplePlaybackContext } from "../playback";
 import { SpliceTag } from "../../splice/entities";
 import { SpliceSample } from "../../splice/api";
 import { decodeSpliceAudio } from "../../splice/decoder";
+import { getCachedAudio, setCachedAudio, hasCachedAudio } from "../audioCache";
+import { showToast } from "./Toast";
+
+const FETCH_TIMEOUT_MS = 8000;
 
 const getChordTypeDisplay = (type: string | null) =>
   type == null ? "" : type == "major" ? " Major" : " Minor";
 
 export type TagClickHandler = (tag: SpliceTag) => void;
+
+/**
+ * Fetches a URL with timeout and retry logic.
+ */
+async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response<ArrayBuffer>> {
+  const attempt = async (): Promise<Response<ArrayBuffer>> => {
+    return new Promise(async (resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`Fetch timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      try {
+        const resp = await fetch<ArrayBuffer>(url, {
+          method: "GET",
+          responseType: ResponseType.Binary
+        });
+        clearTimeout(timer);
+        resolve(resp);
+      } catch (err) {
+        clearTimeout(timer);
+        reject(err);
+      }
+    });
+  };
+
+  // First attempt
+  try {
+    return await attempt();
+  } catch (firstErr) {
+    // Retry once
+    try {
+      return await attempt();
+    } catch (secondErr) {
+      throw new Error(`Failed after retry: ${secondErr}`);
+    }
+  }
+}
 
 /**
  * Provides a view describing a Splice sample.
@@ -34,7 +75,6 @@ export default function SampleListEntry(
 ) {
   const [fgLoading, setFgLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
-  const audio = document.createElement("audio");
 
   const pack = sample.parents.items[0];
   const packCover = pack
@@ -45,22 +85,15 @@ export default function SampleListEntry(
 
   let fetchAhead: Promise<Response<ArrayBuffer>> | null = null;
   function startFetching() {
-    if (fetchAhead != null)
+    if (fetchAhead != null || hasCachedAudio(sample.uuid))
       return;
 
     const file = sample.files.find(x => x.asset_file_type_slug == "preview_mp3")!;
 
-    fetchAhead = fetch<ArrayBuffer>(file.url, {
-      method: "GET",
-      responseType: ResponseType.Binary
-    });
+    fetchAhead = fetchWithTimeout(file.url, FETCH_TIMEOUT_MS);
   }
 
-  audio.onended = () => setPlaying(false);
-
   function stop() {
-    audio.pause();
-    audio.currentTime = 0;
     setPlaying(false);
   }
 
@@ -70,20 +103,44 @@ export default function SampleListEntry(
     if (playing)
       return;
 
-    if (audio.src == "") {
-      setFgLoading(true);
-      await ensureAudioDecoded();
-      setFgLoading(false);
-
-      audio.src = URL.createObjectURL(
-        new Blob([decodedSample!], { "type": "audio/mpeg" })
-      );
+    // Check cache first
+    const cached = getCachedAudio(sample.uuid);
+    if (cached) {
+      setPlaying(true);
+      ctx.setPlayerState({
+        sampleName: sample.name.split("/").pop() || sample.name,
+        audioSrc: cached,
+        packName: pack?.name
+      });
+      ctx.setCancellation(() => stop);
+      return;
     }
 
-    audio.play();
-    setPlaying(true);
+    // Fetch and decode
+    setFgLoading(true);
+    try {
+      await ensureAudioDecoded();
 
-    ctx.setCancellation(() => stop);
+      const blobUrl = URL.createObjectURL(
+        new Blob([decodedSample!], { "type": "audio/mpeg" })
+      );
+
+      // Cache it
+      setCachedAudio(sample.uuid, blobUrl);
+
+      setPlaying(true);
+      ctx.setPlayerState({
+        sampleName: sample.name.split("/").pop() || sample.name,
+        audioSrc: blobUrl,
+        packName: pack?.name
+      });
+
+      ctx.setCancellation(() => stop);
+    } catch (err) {
+      showToast(`Failed to load sample: ${err instanceof Error ? err.message : "Unknown error"}`, "error");
+    } finally {
+      setFgLoading(false);
+    }
   }
 
   async function ensureAudioDecoded() {
@@ -94,15 +151,18 @@ export default function SampleListEntry(
       startFetching();
     }
 
-    const resp = await fetchAhead;
-    decodedSample = decodeSpliceAudio(new Uint8Array(resp!.data));
+    try {
+      const resp = await fetchAhead;
+      decodedSample = decodeSpliceAudio(new Uint8Array(resp!.data));
+    } catch (err) {
+      fetchAhead = null; // Reset so next attempt will re-fetch
+      throw err;
+    }
   }
 
   const sanitizePath = (x: string) => x.replace(/[<>:"|?* ]/g, "_");
 
   async function handleDrag(ev: React.MouseEvent<HTMLDivElement, MouseEvent>) {
-    // Verify that the parent of the element that we began the dragging from
-    // is not explicitly marked as non-draggable (as it may be clicked etc.)
     const dragOrigin = document.elementFromPoint(ev.clientX, ev.clientY)?.parentElement;
     if (dragOrigin != null && dragOrigin.dataset.draggable === "false") {
       return;
@@ -116,46 +176,46 @@ export default function SampleListEntry(
     };
 
     setFgLoading(true);
-    await ensureAudioDecoded();
+    try {
+      await ensureAudioDecoded();
 
-    if (!await checkFileExists(cfg().sampleDir, samplePath)) {
-      if (cfg().placeholders) {
-        await createPlaceholder(cfg().sampleDir, samplePath);
-        startDrag(dragParams);
-      }
+      if (!await checkFileExists(cfg().sampleDir, samplePath)) {
+        if (cfg().placeholders) {
+          await createPlaceholder(cfg().sampleDir, samplePath);
+          startDrag(dragParams);
+        }
 
-      const actx = new AudioContext();
+        const actx = new AudioContext();
 
-      const samples = await actx.decodeAudioData(decodedSample!.buffer);
-      const channels: Float32Array[] = [];
+        const samples = await actx.decodeAudioData(decodedSample!.buffer);
+        const channels: Float32Array[] = [];
 
-      if (samples.length < 60 * 44100) {
-        for (let i = 0; i < samples.numberOfChannels; i++) {
-          const chan = samples.getChannelData(i);
+        if (samples.length < 60 * 44100) {
+          for (let i = 0; i < samples.numberOfChannels; i++) {
+            const chan = samples.getChannelData(i);
+            const start = 1200;
+            const end = ((sample.duration / 1000) * samples.sampleRate) + start;
+            channels.push(chan.subarray(start, end));
+          }
+        } else {
+          console.warn(`big boi detected of ${samples.length} samples - not pre-processing!`);
+        }
 
-          const start = 1200;
-          const end = ((sample.duration / 1000) * samples.sampleRate) + start;
+        await writeSampleFile(cfg().sampleDir, samplePath, wav.encode(channels, {
+          bitDepth: 16,
+          sampleRate: samples.sampleRate
+        }));
 
-          channels.push(chan.subarray(start, end));
+        if (!cfg().placeholders) {
+          startDrag(dragParams);
         }
       } else {
-        // processing big samples may result in memory allocation errors (it sure did for me!!)
-        console.warn(`big boi detected of ${samples.length} samples - not pre-processing!`);
-      }
-
-      await writeSampleFile(cfg().sampleDir, samplePath, wav.encode(channels, {
-        bitDepth: 16,
-        sampleRate: samples.sampleRate
-      }));
-
-      if (!cfg().placeholders) {
         startDrag(dragParams);
       }
-
+    } catch (err) {
+      showToast(`Failed to prepare sample: ${err instanceof Error ? err.message : "Unknown error"}`, "error");
+    } finally {
       setFgLoading(false);
-    } else {
-      setFgLoading(false);
-      startDrag(dragParams);
     }
   }
 
@@ -164,10 +224,9 @@ export default function SampleListEntry(
       className={`flex w-full px-4 py-2 gap-8 rounded transition-background
                     items-center hover:bg-foreground-100 cursor-grab select-none`}
     >
-      { /* when loading, set the cursor for everything to a waiting icon */}
       {fgLoading && <style> {`* { cursor: wait }`} </style>}
 
-      { /* sample pack */}
+      {/* sample pack */}
       <div className="flex gap-4 min-w-20">
         <Tooltip content={
           <div className="flex flex-col gap-2 p-4">
@@ -185,7 +244,7 @@ export default function SampleListEntry(
         </div>
       </div>
 
-      { /* sample name + tags */}
+      {/* sample name + tags */}
       <div className="grow" onMouseDown={handleDrag}>
         <div className="flex gap-1 max-w-[50vw] overflow-clip">
           {sample.name.split("/").pop()}
@@ -203,7 +262,7 @@ export default function SampleListEntry(
         ))}</div>
       </div>
 
-      { /* other metadata */}
+      {/* other metadata */}
       <div className="flex gap-8" onMouseDown={handleDrag}>
         {sample.key != null ?
           <div className="flex items-center gap-2 font-semibold text-foreground-500">
