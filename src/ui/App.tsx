@@ -15,7 +15,10 @@ import SettingsModalContent from "./components/SettingsModalContent";
 import KeyScaleSelection from "./components/KeyScaleSelection";
 import PlayerBar, { PlayerState } from "./components/PlayerBar";
 import ToastContainer from "./components/Toast";
+import { showToast } from "./components/Toast";
 import { SamplePlaybackCancellation, SamplePlaybackContext } from "./playback";
+import { loadFavorites } from "./favorites";
+import { loadDownloadHistory } from "./downloadHistory";
 
 function App() {
   const settings = useDisclosure({
@@ -54,6 +57,14 @@ function App() {
   const [currentPage, setCurrentPage] = useState(0);
 
   const [searchLoading, setSearchLoading] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedSamples, setSelectedSamples] = useState(new Set<string>());
+
+  // Load favorites and download history on startup
+  useEffect(() => {
+    loadFavorites();
+    loadDownloadHistory();
+  }, []);
 
   useEffect(() => {
     updateSearch(query);
@@ -211,6 +222,19 @@ function App() {
             <SelectItem key="random">Random</SelectItem>
         </Select>
 
+        <Button
+          variant={batchMode ? "solid" : "bordered"}
+          color={batchMode ? "primary" : "default"}
+          aria-label="Batch select"
+          onClick={() => {
+            setBatchMode(!batchMode);
+            if (batchMode) setSelectedSamples(new Set());
+          }}
+          className="min-w-[90px]"
+        >
+          {batchMode ? `${selectedSamples.size} selected` : "Select"}
+        </Button>
+
         <Button isIconOnly variant="bordered" aria-label="Settings" onClick={settings.onOpen}>
           <WrenchIcon className="w-4" />
         </Button>
@@ -346,7 +370,20 @@ function App() {
 
               <div className="flex-1 flex flex-col">
               { results.map(
-                x => <SampleListEntry key={x.uuid} sample={x} onTagClick={handleTagClick} ctx={pbCtx}/>
+                x => <SampleListEntry
+                  key={x.uuid}
+                  sample={x}
+                  onTagClick={handleTagClick}
+                  ctx={pbCtx}
+                  batchMode={batchMode}
+                  isSelected={selectedSamples.has(x.uuid)}
+                  onSelectToggle={(uuid) => {
+                    const next = new Set(selectedSamples);
+                    if (next.has(uuid)) next.delete(uuid);
+                    else next.add(uuid);
+                    setSelectedSamples(next);
+                  }}
+                />
               ) }
               </div>
 

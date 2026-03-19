@@ -1,10 +1,11 @@
-import { Chip, CircularProgress, Tooltip } from "@nextui-org/react";
+import { Checkbox, Chip, CircularProgress, Tooltip } from "@nextui-org/react";
 import { ClockCircleLinearIcon, ClockSquareBoldIcon } from '@nextui-org/shared-icons'
-import { MusicalNoteIcon } from "@heroicons/react/20/solid";
+import { MusicalNoteIcon, HeartIcon } from "@heroicons/react/20/solid";
+import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 
 import { Response, ResponseType, fetch } from '@tauri-apps/api/http';
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 
 import * as wav from "node-wav";
@@ -18,6 +19,8 @@ import { SpliceSample } from "../../splice/api";
 import { decodeSpliceAudio } from "../../splice/decoder";
 import { getCachedAudio, setCachedAudio, hasCachedAudio } from "../audioCache";
 import { showToast } from "./Toast";
+import { isFavorite, toggleFavorite, onFavoritesChange } from "../favorites";
+import { isDownloaded, addToHistory } from "../downloadHistory";
 
 const FETCH_TIMEOUT_MS = 8000;
 
@@ -67,14 +70,24 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
  * Provides a view describing a Splice sample.
  */
 export default function SampleListEntry(
-  { sample, ctx, onTagClick }: {
+  { sample, ctx, onTagClick, batchMode, isSelected, onSelectToggle }: {
     sample: SpliceSample,
     ctx: SamplePlaybackContext,
-    onTagClick: TagClickHandler
+    onTagClick: TagClickHandler,
+    batchMode?: boolean,
+    isSelected?: boolean,
+    onSelectToggle?: (uuid: string) => void
   }
 ) {
   const [fgLoading, setFgLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
+  const [faved, setFaved] = useState(isFavorite(sample.uuid));
+  const [downloaded, setDownloaded] = useState(isDownloaded(sample.uuid));
+
+  useEffect(() => {
+    const unsub = onFavoritesChange(() => setFaved(isFavorite(sample.uuid)));
+    return unsub;
+  }, [sample.uuid]);
 
   const pack = sample.parents.items[0];
   const packCover = pack
@@ -209,6 +222,16 @@ export default function SampleListEntry(
         if (!cfg().placeholders) {
           startDrag(dragParams);
         }
+
+        // Track in download history
+        await addToHistory({
+          uuid: sample.uuid,
+          name: sample.name,
+          packName: pack?.name || "Unknown",
+          downloadedAt: new Date().toISOString(),
+          filePath: samplePath
+        });
+        setDownloaded(true);
       } else {
         startDrag(dragParams);
       }
@@ -226,8 +249,19 @@ export default function SampleListEntry(
     >
       {fgLoading && <style> {`* { cursor: wait }`} </style>}
 
+      {/* batch select checkbox */}
+      {batchMode && (
+        <div data-draggable="false" className="flex items-center">
+          <Checkbox
+            isSelected={isSelected}
+            onChange={() => onSelectToggle?.(sample.uuid)}
+            size="sm"
+          />
+        </div>
+      )}
+
       {/* sample pack */}
-      <div className="flex gap-4 min-w-20">
+      <div className="flex gap-4 min-w-20 items-center">
         <Tooltip content={
           <div className="flex flex-col gap-2 p-4">
             <img src={packCover} alt={pack.name} width={128} height={128}></img>
@@ -242,6 +276,39 @@ export default function SampleListEntry(
         <div onClick={handlePlayClick} className="cursor-pointer w-8">
           {fgLoading ? <CircularProgress aria-label="Loading sample..." className="h-8" /> : playing ? <StopIcon /> : <PlayIcon />}
         </div>
+
+        {/* Favorite heart */}
+        <div
+          data-draggable="false"
+          onClick={async (e) => {
+            e.stopPropagation();
+            const added = await toggleFavorite({
+              uuid: sample.uuid,
+              name: sample.name,
+              packName: pack?.name || "Unknown",
+              bpm: sample.bpm,
+              key: sample.key,
+              duration: sample.duration,
+              category: sample.asset_category_slug,
+              addedAt: new Date().toISOString()
+            });
+            setFaved(added);
+            showToast(added ? "Added to favorites" : "Removed from favorites", added ? "success" : "info");
+          }}
+          className="cursor-pointer w-5 h-5 transition-colors"
+        >
+          {faved
+            ? <HeartIcon className="w-5 h-5 text-danger-500" />
+            : <HeartOutline className="w-5 h-5 text-foreground-300 hover:text-danger-400" />
+          }
+        </div>
+
+        {/* Downloaded indicator */}
+        {downloaded && (
+          <Tooltip content="Already downloaded">
+            <span className="text-success-500 text-xs">✓</span>
+          </Tooltip>
+        )}
       </div>
 
       {/* sample name + tags */}
