@@ -349,11 +349,16 @@ export default function SampleListEntry(
 
       {/* action buttons */}
       <div className="flex gap-1 items-center" data-draggable="false">
-        {sample.has_similar_sounds && onSimilarSounds && (
-          <Tooltip content="Find similar sounds">
+        {onSimilarSounds && (
+          <Tooltip content={sample.has_similar_sounds ? "Find similar sounds" : "Similar sounds not available for this sample"}>
             <button
-              onClick={(e) => { e.stopPropagation(); onSimilarSounds(sample.uuid); }}
-              className="text-xs px-2 py-1 rounded bg-foreground-100 hover:bg-foreground-200 text-foreground-600 transition-colors"
+              onClick={(e) => { e.stopPropagation(); if (sample.has_similar_sounds) onSimilarSounds(sample.uuid); }}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                sample.has_similar_sounds
+                  ? "bg-foreground-100 hover:bg-foreground-200 text-foreground-600 cursor-pointer"
+                  : "bg-foreground-50 text-foreground-300 cursor-not-allowed opacity-50"
+              }`}
+              disabled={!sample.has_similar_sounds}
             >
               Similar
             </button>

@@ -14,6 +14,7 @@ import SampleListEntry from "./components/SampleListEntry";
 import SettingsModalContent from "./components/SettingsModalContent";
 import KeyScaleSelection from "./components/KeyScaleSelection";
 import PlayerBar, { PlayerState } from "./components/PlayerBar";
+import HistoryPanel from "./components/HistoryPanel";
 import ToastContainer from "./components/Toast";
 import { showToast } from "./components/Toast";
 import { SamplePlaybackCancellation, SamplePlaybackContext } from "./playback";
@@ -60,6 +61,7 @@ function App() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [batchMode, setBatchMode] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState(new Set<string>());
+  const [libraryOpen, setLibraryOpen] = useState(false);
 
   const [browsingPack, setBrowsingPack] = useState<string | null>(null);
 
@@ -315,6 +317,15 @@ function App() {
           {batchMode ? `${selectedSamples.size} selected` : "Select"}
         </Button>
 
+        <Button
+          variant="bordered"
+          aria-label="Library"
+          onClick={() => setLibraryOpen(true)}
+          className="min-w-[80px]"
+        >
+          Library
+        </Button>
+
         <Button isIconOnly variant="bordered" aria-label="Settings" onClick={settings.onOpen}>
           <WrenchIcon className="w-4" />
         </Button>
@@ -505,6 +516,8 @@ function App() {
               <p className="text-foreground-400">Waiting for your command!</p>
             </div>
       }
+
+      <HistoryPanel isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} />
 
       <PlayerBar
         playerState={playerState}
