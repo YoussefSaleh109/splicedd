@@ -64,6 +64,7 @@ function App() {
   const [libraryOpen, setLibraryOpen] = useState(false);
 
   const [browsingPack, setBrowsingPack] = useState<string | null>(null);
+  const [browsingPackUuid, setBrowsingPackUuid] = useState<string | null>(null);
 
   // Load favorites and download history on startup
   useEffect(() => {
@@ -73,6 +74,7 @@ function App() {
 
   async function handleBrowsePack(packUuid: string, packName: string) {
     setBrowsingPack(packName);
+    setBrowsingPackUuid(packUuid);
     setSearchLoading(true);
 
     try {
@@ -97,6 +99,7 @@ function App() {
 
   async function handleFindSimilar(sample: SpliceSample) {
     setBrowsingPack(`Similar to "${sample.name.split("/").pop()}"`);
+    setBrowsingPackUuid(null);
     setSearchLoading(true);
 
     try {
@@ -123,6 +126,7 @@ function App() {
 
   async function handleRareFinds() {
     setBrowsingPack("Rare Finds");
+    setBrowsingPackUuid(null);
     setSearchLoading(true);
 
     try {
@@ -234,7 +238,19 @@ function App() {
   }
 
   async function updateSearch(newQuery: string, resetPage = false) {
-      const payload = createSearchRequest(newQuery);
+      let payload;
+
+      // If browsing a pack, scope the search within that pack
+      if (browsingPackUuid && newQuery) {
+        payload = createPackBrowseRequest(browsingPackUuid);
+        // Add the search query as filepath filter within the pack
+        payload.variables.filepath = newQuery;
+      } else if (browsingPackUuid && !newQuery) {
+        payload = createPackBrowseRequest(browsingPackUuid);
+      } else {
+        payload = createSearchRequest(newQuery);
+      }
+
       payload.variables.sort = sortBy;
       if (sortBy == "random") {
         payload.variables.random_seed = Math.floor(Math.random() * 10000000000).toString();
@@ -315,7 +331,7 @@ function App() {
         <Input
             type="text"
             aria-label="Search for samples"
-            placeholder="Search for samples..."
+            placeholder={browsingPackUuid ? `Search within ${browsingPack}...` : "Search for samples..."}
             labelPlacement="outside"
             variant="bordered"
             value={query}
@@ -515,7 +531,7 @@ function App() {
                     <p className="text-small text-default-400">Found {resultCount} sample{results.length != 1 ? "s" : ""} in total.</p>
                     {browsingPack && (
                       <button
-                        onClick={() => { setBrowsingPack(null); updateSearch(query, true); }}
+                        onClick={() => { setBrowsingPack(null); setBrowsingPackUuid(null); updateSearch(query, true); }}
                         className="text-xs text-primary hover:underline"
                       >
                         ← Back to search
