@@ -108,6 +108,42 @@ export function createPackBrowseRequest(packUuid: string): SpliceSearchRequest {
   return req;
 }
 
+/**
+ * Creates a search request that finds samples similar to the given sample
+ * by using its tags, BPM, key, and category as filters.
+ */
+export function createSimilarSearchRequest(sample: SpliceSample): SpliceSearchRequest {
+  const req = createSearchRequest("");
+  req.variables.filepath = "";
+
+  // Use the sample's tags to find similar
+  req.variables.tags = sample.tags.map(t => t.uuid);
+
+  // Match BPM range if available
+  if (sample.bpm) {
+    req.variables.min_bpm = Math.max(1, sample.bpm - 10);
+    req.variables.max_bpm = sample.bpm + 10;
+  }
+
+  // Match key if available
+  if (sample.key) {
+    req.variables.key = sample.key;
+  }
+
+  // Match chord type if available
+  if (sample.chord_type) {
+    req.variables.chord_type = sample.chord_type;
+  }
+
+  // Match category (oneshot/loop)
+  req.variables.asset_category_slug = sample.asset_category_slug;
+
+  req.variables.limit = 50;
+  req.variables.sort = "relevance";
+
+  return req;
+}
+
 export type SpliceFile = {
   name: string,
   path: string,

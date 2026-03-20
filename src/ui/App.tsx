@@ -7,7 +7,7 @@ import { CircularProgress, Input, Modal, Pagination, Popover, PopoverContent, Po
 import { fetch } from '@tauri-apps/api/http';
 
 import { cfg } from "../config";
-import { GRAPHQL_URL, SpliceSample, SpliceSearchResponse, createSearchRequest, createPackBrowseRequest } from "../splice/api";
+import { GRAPHQL_URL, SpliceSample, SpliceSearchResponse, createSearchRequest, createPackBrowseRequest, createSimilarSearchRequest } from "../splice/api";
 import { ChordType, MusicKey, SpliceSampleType, SpliceSortBy, SpliceTag } from "../splice/entities";
 
 import SampleListEntry from "./components/SampleListEntry";
@@ -90,6 +90,32 @@ function App() {
       showToast(`Browsing pack: ${packName}`, "info");
     } catch (err) {
       showToast(`Failed to load pack: ${err}`, "error");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  async function handleFindSimilar(sample: SpliceSample) {
+    setBrowsingPack(`Similar to "${sample.name.split("/").pop()}"`);
+    setSearchLoading(true);
+
+    try {
+      const payload = createSimilarSearchRequest(sample);
+      const resp = await fetch<SpliceSearchResponse>(GRAPHQL_URL, {
+        method: "POST",
+        body: { type: "Json", payload }
+      });
+
+      const data = resp.data.data.assetsSearch;
+      // Filter out the original sample
+      const filtered = data.items.filter(i => i.uuid !== sample.uuid);
+      setResults(filtered);
+      setResultCount(filtered.length);
+      setCurrentPage(1);
+      setTotalPages(1);
+      showToast(`Found ${filtered.length} similar sounds`, "info");
+    } catch (err) {
+      showToast(`Failed to find similar sounds: ${err}`, "error");
     } finally {
       setSearchLoading(false);
     }
@@ -508,6 +534,7 @@ function App() {
                   sample={x}
                   onTagClick={handleTagClick}
                   onPackBrowse={handleBrowsePack}
+                  onFindSimilar={handleFindSimilar}
                   ctx={pbCtx}
                   batchMode={batchMode}
                   isSelected={selectedSamples.has(x.uuid)}

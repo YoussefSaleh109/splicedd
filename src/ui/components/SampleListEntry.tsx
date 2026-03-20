@@ -30,6 +30,7 @@ const getChordTypeDisplay = (type: string | null) =>
 
 export type TagClickHandler = (tag: SpliceTag) => void;
 export type PackBrowseHandler = (packUuid: string, packName: string) => void;
+export type FindSimilarHandler = (sample: SpliceSample) => void;
 
 
 /**
@@ -73,11 +74,12 @@ async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Respons
  * Provides a view describing a Splice sample.
  */
 export default function SampleListEntry(
-  { sample, ctx, onTagClick, onPackBrowse, batchMode, isSelected, onSelectToggle }: {
+  { sample, ctx, onTagClick, onPackBrowse, onFindSimilar, batchMode, isSelected, onSelectToggle }: {
     sample: SpliceSample,
     ctx: SamplePlaybackContext,
     onTagClick: TagClickHandler,
     onPackBrowse?: PackBrowseHandler,
+    onFindSimilar?: FindSimilarHandler,
     batchMode?: boolean,
     isSelected?: boolean,
     onSelectToggle?: (uuid: string) => void
@@ -359,7 +361,16 @@ export default function SampleListEntry(
 
       {/* action buttons */}
       <div className="flex gap-1 items-center" data-draggable="false">
-        
+        {onFindSimilar && sample.tags.length > 0 && (
+          <Tooltip content="Find similar sounds">
+            <button
+              onClick={(e) => { e.stopPropagation(); onFindSimilar(sample); }}
+              className="text-xs px-2 py-1 rounded bg-foreground-100 hover:bg-foreground-200 text-foreground-600 transition-colors cursor-pointer"
+            >
+              Similar
+            </button>
+          </Tooltip>
+        )}
         {pack && onPackBrowse && (
           <Tooltip content={`Browse all samples in ${pack.name}`}>
             <button
