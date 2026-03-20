@@ -5,7 +5,7 @@ import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 
 import { Response, ResponseType, fetch } from '@tauri-apps/api/http';
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { startDrag } from "@crabnebula/tauri-plugin-drag";
 
 import * as wav from "node-wav";
@@ -99,16 +99,16 @@ export default function SampleListEntry(
     ? pack.files.find(x => x.asset_file_type_slug == "cover_image")?.url
     : "img/missing-cover.png";
 
-  let decodedSample: Uint8Array | null = null;
+  const decodedSampleRef = useRef<Uint8Array | null>(null);
+  const fetchAheadRef = useRef<Promise<Response<ArrayBuffer>> | null>(null);
 
-  let fetchAhead: Promise<Response<ArrayBuffer>> | null = null;
   function startFetching() {
-    if (fetchAhead != null || hasCachedAudio(sample.uuid))
+    if (fetchAheadRef.current != null || hasCachedAudio(sample.uuid))
       return;
 
     const file = sample.files.find(x => x.asset_file_type_slug == "preview_mp3")!;
 
-    fetchAhead = fetchWithTimeout(file.url, FETCH_TIMEOUT_MS);
+    fetchAheadRef.current = fetchWithTimeout(file.url, FETCH_TIMEOUT_MS);
   }
 
   function stop() {
@@ -146,7 +146,7 @@ export default function SampleListEntry(
       await ensureAudioDecoded();
 
       const blobUrl = URL.createObjectURL(
-        new Blob([decodedSample!], { "type": "audio/mpeg" })
+        new Blob([decodedSampleRef.current!], { "type": "audio/mpeg" })
       );
 
       // Cache it
@@ -169,18 +169,18 @@ export default function SampleListEntry(
   }
 
   async function ensureAudioDecoded() {
-    if (decodedSample != null)
+    if (decodedSampleRef.current != null)
       return;
 
-    if (fetchAhead == null) {
+    if (fetchAheadRef.current == null) {
       startFetching();
     }
 
     try {
-      const resp = await fetchAhead;
-      decodedSample = decodeSpliceAudio(new Uint8Array(resp!.data));
+      const resp = await fetchAheadRef.current;
+      decodedSampleRef.current = decodeSpliceAudio(new Uint8Array(resp!.data));
     } catch (err) {
-      fetchAhead = null; // Reset so next attempt will re-fetch
+      fetchAheadRef.current = null; // Reset so next attempt will re-fetch
       throw err;
     }
   }
@@ -212,7 +212,7 @@ export default function SampleListEntry(
 
         const actx = new AudioContext();
 
-        const samples = await actx.decodeAudioData(decodedSample!.buffer);
+        const samples = await actx.decodeAudioData(decodedSampleRef.current!.buffer);
         const channels: Float32Array[] = [];
 
         if (samples.length < 60 * 44100) {
