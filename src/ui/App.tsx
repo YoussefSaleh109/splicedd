@@ -142,10 +142,13 @@ function App() {
 
   const [smplCancellation, smplSetCancellation] = useState<SamplePlaybackCancellation | null>(null);
   const [playerState, setPlayerState] = useState<PlayerState | null>(null);
+  const [playingSampleUuid, setPlayingSampleUuid] = useState<string | null>(null);
   const pbCtx: SamplePlaybackContext = {
     cancellation: smplCancellation,
     setCancellation: smplSetCancellation,
-    setPlayerState
+    setPlayerState,
+    playingSampleUuid,
+    setPlayingSampleUuid
   }
 
   // Keyboard shortcuts
@@ -536,7 +539,11 @@ function App() {
         playerState={playerState}
         onStop={() => {
           setPlayerState(null);
+          setPlayingSampleUuid(null);
           smplCancellation?.();
+        }}
+        onEnded={() => {
+          setPlayingSampleUuid(null);
         }}
       />
     </main>

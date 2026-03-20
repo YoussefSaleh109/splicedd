@@ -84,7 +84,7 @@ export default function SampleListEntry(
   }
 ) {
   const [fgLoading, setFgLoading] = useState(false);
-  const [playing, setPlaying] = useState(false);
+  const playing = ctx.playingSampleUuid === sample.uuid;
   const [faved, setFaved] = useState(isFavorite(sample.uuid));
   const [downloaded, setDownloaded] = useState(isDownloaded(sample.uuid));
 
@@ -111,14 +111,15 @@ export default function SampleListEntry(
   }
 
   function stop() {
-    setPlaying(false);
+    ctx.setPlayingSampleUuid(null);
   }
 
   async function handlePlayClick() {
     // If already playing this sample, stop it
     if (playing) {
       ctx.cancellation?.();
-      setPlaying(false);
+      ctx.setPlayingSampleUuid(null);
+      ctx.setPlayerState(null);
       return;
     }
 
@@ -128,7 +129,7 @@ export default function SampleListEntry(
     // Check cache first
     const cached = getCachedAudio(sample.uuid);
     if (cached) {
-      setPlaying(true);
+      ctx.setPlayingSampleUuid(sample.uuid);
       ctx.setPlayerState({
         sampleName: sample.name.split("/").pop() || sample.name,
         audioSrc: cached,
@@ -151,7 +152,7 @@ export default function SampleListEntry(
       // Cache it
       setCachedAudio(sample.uuid, blobUrl);
 
-      setPlaying(true);
+      ctx.setPlayingSampleUuid(sample.uuid);
       ctx.setPlayerState({
         sampleName: sample.name.split("/").pop() || sample.name,
         audioSrc: blobUrl,

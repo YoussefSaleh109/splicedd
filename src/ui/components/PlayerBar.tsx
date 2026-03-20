@@ -12,6 +12,7 @@ export interface PlayerState {
 interface PlayerBarProps {
   playerState: PlayerState | null;
   onStop: () => void;
+  onEnded?: () => void;
 }
 
 function formatTime(seconds: number): string {
@@ -20,7 +21,7 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-export default function PlayerBar({ playerState, onStop }: PlayerBarProps) {
+export default function PlayerBar({ playerState, onStop, onEnded }: PlayerBarProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const progressRef = useRef<HTMLDivElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -52,6 +53,7 @@ export default function PlayerBar({ playerState, onStop }: PlayerBarProps) {
     audio.addEventListener("ended", () => {
       setIsPlaying(false);
       setCurrentTime(0);
+      onEnded?.();
     });
 
     audio.play();

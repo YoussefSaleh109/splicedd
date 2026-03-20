@@ -8,6 +8,9 @@ export interface SamplePlaybackContext {
   cancellation: SamplePlaybackCancellation | null;
   setCancellation: React.Dispatch<React.SetStateAction<SamplePlaybackCancellation | null>>;
   setPlayerState: React.Dispatch<React.SetStateAction<PlayerState | null>>;
+  /** UUID of the currently playing sample (null if nothing playing) */
+  playingSampleUuid: string | null;
+  setPlayingSampleUuid: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 /**
