@@ -68,26 +68,6 @@ function App() {
     loadDownloadHistory();
   }, []);
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      // Don't trigger if user is typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (e.code === "Space") {
-        e.preventDefault();
-        // Toggle play/pause on current player
-        if (playerState) {
-          pbCtx.cancellation?.();
-          setPlayerState(null);
-        }
-      }
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [playerState, pbCtx]);
-
   async function handleBrowsePack(packUuid: string, packName: string) {
     setBrowsingPack(packName);
     setSearchLoading(true);
@@ -155,6 +135,22 @@ function App() {
     setCancellation: smplSetCancellation,
     setPlayerState
   }
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (playerState) {
+          pbCtx.cancellation?.();
+          setPlayerState(null);
+        }
+      }
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [playerState, pbCtx]);
 
   function ensureContraintsGathered() {
     if (knownInstruments.length == 0 || knownGenres.length == 0) {

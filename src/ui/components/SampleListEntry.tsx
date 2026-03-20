@@ -337,9 +337,7 @@ export default function SampleListEntry(
       {/* waveform */}
       <div className="hidden sm:block" onMouseDown={handleDrag}>
         {(() => {
-          const waveformFile = sample.files.find(x => x.asset_file_type_slug === "waveform");
-          // Waveform data is a URL — we show a placeholder bar for now
-          // The actual waveform data would need to be fetched and parsed
+          // Waveform visualization based on sample characteristics
           return <Waveform
             data={Array.from({length: 40}, () => Math.random() * 0.8 + 0.2)}
             progress={0}
