@@ -5,6 +5,8 @@ export interface PlayerState {
   sampleName: string;
   audioSrc: string;
   packName?: string;
+  /** Unique play ID to force replay of same sample */
+  playId?: number;
 }
 
 interface PlayerBarProps {
@@ -62,7 +64,7 @@ export default function PlayerBar({ playerState, onStop }: PlayerBarProps) {
       audio.removeEventListener("timeupdate", () => {});
       audio.removeEventListener("ended", () => {});
     };
-  }, [playerState?.audioSrc]);
+  }, [playerState?.audioSrc, playerState?.playId]);
 
   function handlePlayPause() {
     if (!audioRef.current) return;

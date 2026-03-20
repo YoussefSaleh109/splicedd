@@ -128,7 +128,8 @@ export default function SampleListEntry(
       ctx.setPlayerState({
         sampleName: sample.name.split("/").pop() || sample.name,
         audioSrc: cached,
-        packName: pack?.name
+        packName: pack?.name,
+        playId: Date.now()
       });
       ctx.setCancellation(() => stop);
       return;
@@ -150,7 +151,8 @@ export default function SampleListEntry(
       ctx.setPlayerState({
         sampleName: sample.name.split("/").pop() || sample.name,
         audioSrc: blobUrl,
-        packName: pack?.name
+        packName: pack?.name,
+        playId: Date.now()
       });
 
       ctx.setCancellation(() => stop);
