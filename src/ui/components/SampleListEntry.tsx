@@ -116,10 +116,15 @@ export default function SampleListEntry(
   }
 
   async function handlePlayClick() {
-    ctx.cancellation?.();
-
-    if (playing)
+    // If already playing this sample, stop it
+    if (playing) {
+      ctx.cancellation?.();
+      setPlaying(false);
       return;
+    }
+
+    // Stop any other sample that's playing
+    ctx.cancellation?.();
 
     // Check cache first
     const cached = getCachedAudio(sample.uuid);
@@ -284,39 +289,42 @@ export default function SampleListEntry(
           {fgLoading ? <CircularProgress aria-label="Loading sample..." className="h-8" /> : playing ? <StopIcon /> : <PlayIcon />}
         </div>
 
-        {/* Favorite heart */}
-        <div
-          data-draggable="false"
-          onClick={async (e) => {
-            e.stopPropagation();
-            const added = await toggleFavorite({
-              uuid: sample.uuid,
-              name: sample.name,
-              packName: pack?.name || "Unknown",
-              bpm: sample.bpm,
-              key: sample.key,
-              duration: sample.duration,
-              category: sample.asset_category_slug,
-              addedAt: new Date().toISOString()
-            });
-            setFaved(added);
-            showToast(added ? "Added to favorites" : "Removed from favorites", added ? "success" : "info");
-          }}
-          className="cursor-pointer w-5 h-5 transition-colors"
-        >
-          {faved
-            ? <HeartIcon className="w-5 h-5 text-danger-500" />
-            : <HeartOutline className="w-5 h-5 text-foreground-300 hover:text-danger-400" />
-          }
-        </div>
-
-        {/* Downloaded indicator */}
-        {downloaded && (
-          <Tooltip content="Already downloaded">
-            <span className="text-success-500 text-xs">✓</span>
-          </Tooltip>
-        )}
       </div>
+
+      {/* Favorite heart — outside drag area */}
+      <div
+        data-draggable="false"
+        onClick={async (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          const added = await toggleFavorite({
+            uuid: sample.uuid,
+            name: sample.name,
+            packName: pack?.name || "Unknown",
+            bpm: sample.bpm,
+            key: sample.key,
+            duration: sample.duration,
+            category: sample.asset_category_slug,
+            addedAt: new Date().toISOString()
+          });
+          setFaved(added);
+          showToast(added ? "Added to favorites" : "Removed from favorites", added ? "success" : "info");
+        }}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="cursor-pointer w-5 h-5 transition-colors flex-shrink-0"
+      >
+        {faved
+          ? <HeartIcon className="w-5 h-5 text-danger-500" />
+          : <HeartOutline className="w-5 h-5 text-foreground-300 hover:text-danger-400" />
+        }
+      </div>
+
+      {/* Downloaded indicator */}
+      {downloaded && (
+        <Tooltip content="Already downloaded">
+          <span className="text-success-500 text-xs flex-shrink-0">✓</span>
+        </Tooltip>
+      )}
 
       {/* sample name + tags */}
       <div className="grow" onMouseDown={handleDrag}>
