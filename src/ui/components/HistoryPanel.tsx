@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Chip, Divider } from "@nextui-org/react";
+import { Chip } from "@nextui-org/react";
 import { HeartIcon, ClockIcon, TrashIcon } from "@heroicons/react/20/solid";
 import { getFavorites, FavoriteSample, onFavoritesChange, toggleFavorite } from "../favorites";
 import { getDownloadHistory, DownloadRecord } from "../downloadHistory";

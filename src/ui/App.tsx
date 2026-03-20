@@ -184,11 +184,6 @@ function App() {
     }
   }
 
-  function updateTagState(selectedKeys: Set<string>) {
-    tags = tags.filter(x => Array.from(selectedKeys).some(y => x.uuid == y));
-    setTags(tags);
-    updateSearch(query, true);
-  }
 
   function handleTagClick(tag: SpliceTag) {
     if (tags.some(x => x.uuid == tag.uuid)) {
