@@ -45,6 +45,7 @@ function App() {
 
   const [knownInstruments, setKnownInstruments] = useState<{name: string, uuid: string}[]>([]);
   const [knownGenres, setKnownGenres] = useState<{name: string, uuid: string}[]>([]);
+  const [knownTags, setKnownTags] = useState<{name: string, uuid: string}[]>([]);
 
   const [instruments, setInstruments] = useState(new Set<string>([]));
   const [genres, setGenres] = useState(new Set<string>([]));
@@ -255,6 +256,15 @@ function App() {
 
       setKnownGenres(findConstraints("Genre"));
       setKnownInstruments(findConstraints("Instrument"));
+
+      // Populate available tags (Functional Attributes like "dark", "bright", etc.)
+      const funcTags = data.tag_summary
+        .map(x => x.tag)
+        .filter(x => x.taxonomy.name === "Functional Attribute")
+        .map(x => ({ name: x.label, uuid: x.uuid }));
+      if (funcTags.length > 0) {
+        setKnownTags(funcTags);
+      }
   }
 
   return (
@@ -329,11 +339,24 @@ function App() {
 
         <Select placeholder="Tags" aria-label="Tags" variant="bordered"
           selectionMode="multiple"
+          onOpenChange={ensureContraintsGathered}
           selectedKeys={Array.from(tags).map(x => x.uuid)}
-          onSelectionChange={x => updateTagState(x as Set<string>)}
+          onSelectionChange={x => {
+            const selected = x as Set<string>;
+            // Build tags from knownTags + existing tags
+            const allAvailable = [...knownTags, ...tags.map(t => ({ name: t.label, uuid: t.uuid }))];
+            const uniqueMap = new Map(allAvailable.map(t => [t.uuid, t]));
+            const newTags = Array.from(selected)
+              .map(uuid => uniqueMap.get(uuid))
+              .filter((t): t is {name: string, uuid: string} => t !== undefined)
+              .map(t => ({ uuid: t.uuid, label: t.name }));
+            tags = newTags;
+            setTags(newTags);
+            updateSearch(query, true);
+          }}
           className="w-1/2"
         >
-          { Array.from(tags).map(x => <SelectItem key={x.uuid}>{x.label}</SelectItem>) }
+          { knownTags.map(x => <SelectItem key={x.uuid}>{x.name}</SelectItem>) }
         </Select>
 
         <Popover placement="bottom" showArrow={true}>
