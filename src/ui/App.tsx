@@ -7,7 +7,7 @@ import { CircularProgress, Input, Modal, Pagination, Popover, PopoverContent, Po
 import { fetch } from '@tauri-apps/api/http';
 
 import { cfg } from "../config";
-import { GRAPHQL_URL, SpliceSample, SpliceSearchResponse, createSearchRequest, createPackBrowseRequest, createSimilarSoundsRequest } from "../splice/api";
+import { GRAPHQL_URL, SpliceSample, SpliceSearchResponse, createSearchRequest, createPackBrowseRequest } from "../splice/api";
 import { ChordType, MusicKey, SpliceSampleType, SpliceSortBy, SpliceTag } from "../splice/entities";
 
 import SampleListEntry from "./components/SampleListEntry";
@@ -95,29 +95,38 @@ function App() {
     }
   }
 
-  async function handleSimilarSounds(sampleUuid: string) {
+  async function handleRareFinds() {
+    setBrowsingPack("Rare Finds");
     setSearchLoading(true);
-    setBrowsingPack(null);
 
     try {
-      const payload = createSimilarSoundsRequest(sampleUuid);
-      const resp = await fetch<any>(GRAPHQL_URL, {
+      const payload = createSearchRequest(query || "");
+      payload.variables.sort = "random";
+      payload.variables.random_seed = Math.floor(Math.random() * 10000000000).toString();
+      payload.variables.limit = 50;
+
+      // Apply current filters
+      payload.variables.tags.push(...instruments);
+      payload.variables.tags.push(...genres);
+      if (sampleType !== "any") {
+        payload.variables.asset_category_slug = sampleType;
+      }
+      if (musicKey) payload.variables.key = musicKey;
+      if (chordType) payload.variables.chord_type = chordType;
+
+      const resp = await fetch<SpliceSearchResponse>(GRAPHQL_URL, {
         method: "POST",
         body: { type: "Json", payload }
       });
 
-      const data = resp.data.data.assetSimilar;
-      if (data && data.items) {
-        setResults(data.items);
-        setResultCount(data.response_metadata?.records || data.items.length);
-        setCurrentPage(1);
-        setTotalPages(1);
-        showToast(`Found ${data.items.length} similar sounds`, "info");
-      } else {
-        showToast("No similar sounds found", "info");
-      }
+      const data = resp.data.data.assetsSearch;
+      setResults(data.items);
+      setResultCount(data.response_metadata.records);
+      setCurrentPage(1);
+      setTotalPages(data.pagination_metadata.totalPages);
+      showToast("🎲 Fresh rare finds loaded!", "success");
     } catch (err) {
-      showToast(`Failed to find similar sounds: ${err}`, "error");
+      showToast(`Failed to load rare finds: ${err}`, "error");
     } finally {
       setSearchLoading(false);
     }
@@ -314,6 +323,16 @@ function App() {
 
         <Button
           variant="bordered"
+          color="secondary"
+          aria-label="Rare Finds"
+          onClick={handleRareFinds}
+          className="min-w-[100px]"
+        >
+          🎲 Rare Finds
+        </Button>
+
+        <Button
+          variant="bordered"
           aria-label="Library"
           onClick={() => setLibraryOpen(true)}
           className="min-w-[80px]"
@@ -486,7 +505,6 @@ function App() {
                   sample={x}
                   onTagClick={handleTagClick}
                   onPackBrowse={handleBrowsePack}
-                  onSimilarSounds={handleSimilarSounds}
                   ctx={pbCtx}
                   batchMode={batchMode}
                   isSelected={selectedSamples.has(x.uuid)}
