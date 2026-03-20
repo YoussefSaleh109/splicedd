@@ -10,30 +10,61 @@ export interface DownloadRecord {
 }
 
 let history: DownloadRecord[] = [];
+let useLocalStorage = false;
+
+const LS_KEY = "splicedd_downloads";
 
 export async function loadDownloadHistory(): Promise<void> {
+  // Try Tauri filesystem first
   try {
     const appConfig = await appConfigDir();
-    if (!await exists(appConfig))
-      await createDir(appConfig);
+    if (!await exists(appConfig)) {
+      await createDir(appConfig, { recursive: true });
+    }
 
     if (await exists("download-history.json", { dir: BaseDirectory.AppConfig })) {
       const raw = await readTextFile("download-history.json", { dir: BaseDirectory.AppConfig });
       history = JSON.parse(raw);
+      console.log(`[Downloads] Loaded ${history.length} from Tauri FS`);
+      return;
+    } else {
+      console.log("[Downloads] No file found in Tauri FS, checking localStorage");
     }
   } catch (err) {
-    console.error("Failed to load download history:", err);
+    console.warn("[Downloads] Tauri FS failed, falling back to localStorage:", err);
+    useLocalStorage = true;
+  }
+
+  // Fallback: localStorage
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) {
+      history = JSON.parse(raw);
+      console.log(`[Downloads] Loaded ${history.length} from localStorage`);
+    }
+  } catch (err) {
+    console.error("[Downloads] localStorage also failed:", err);
     history = [];
   }
 }
 
 async function saveHistory(): Promise<void> {
+  const data = JSON.stringify(history, null, 2);
+
+  // Always save to localStorage as backup
   try {
-    await writeTextFile("download-history.json", JSON.stringify(history, null, 2), {
-      dir: BaseDirectory.AppConfig
-    });
-  } catch (err) {
-    console.error("Failed to save download history:", err);
+    localStorage.setItem(LS_KEY, data);
+  } catch (e) {
+    console.warn("[Downloads] localStorage save failed:", e);
+  }
+
+  // Also try Tauri FS
+  if (!useLocalStorage) {
+    try {
+      await writeTextFile("download-history.json", data, { dir: BaseDirectory.AppConfig });
+    } catch (err) {
+      console.warn("[Downloads] Tauri FS save failed:", err);
+    }
   }
 }
 
