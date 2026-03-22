@@ -15,6 +15,7 @@ import SettingsModalContent from "./components/SettingsModalContent";
 import KeyScaleSelection from "./components/KeyScaleSelection";
 import PlayerBar, { PlayerState } from "./components/PlayerBar";
 import HistoryPanel from "./components/HistoryPanel";
+import TracklibBrowser from "./components/TracklibBrowser";
 import ToastContainer from "./components/Toast";
 import { showToast } from "./components/Toast";
 import { SamplePlaybackCancellation, SamplePlaybackContext } from "./playback";
@@ -62,6 +63,7 @@ function App() {
   const [batchMode, setBatchMode] = useState(false);
   const [selectedSamples, setSelectedSamples] = useState(new Set<string>());
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [activeSource, setActiveSource] = useState<"splice" | "tracklib">("splice");
 
   const [browsingPack, setBrowsingPack] = useState<string | null>(null);
   const [browsingPackUuid, setBrowsingPackUuid] = useState<string | null>(null);
@@ -327,6 +329,34 @@ function App() {
         <SettingsModalContent/>
       </Modal>
 
+      {/* Source switcher tabs */}
+      <div className="flex gap-1 mb-2">
+        <button
+          onClick={() => setActiveSource("splice")}
+          className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+            activeSource === "splice"
+              ? "bg-content1 text-foreground border-b-2 border-primary"
+              : "text-foreground-400 hover:text-foreground-600"
+          }`}
+        >
+          🎵 Splice
+        </button>
+        <button
+          onClick={() => setActiveSource("tracklib")}
+          className={`px-4 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+            activeSource === "tracklib"
+              ? "bg-content1 text-foreground border-b-2 border-secondary"
+              : "text-foreground-400 hover:text-foreground-600"
+          }`}
+        >
+          🎶 Tracklib
+        </button>
+      </div>
+
+      {activeSource === "tracklib" ? (
+        <TracklibBrowser ctx={pbCtx} />
+      ) : (
+      <>
       <div className="flex gap-2">
         <Input
             type="text"
@@ -575,6 +605,8 @@ function App() {
               <p className="text-foreground-400">Waiting for your command!</p>
             </div>
       }
+      </>
+      )}
 
       <HistoryPanel isOpen={libraryOpen} onClose={() => setLibraryOpen(false)} />
 
