@@ -171,6 +171,24 @@ export default function PlayerBar({ playerState, onStop, onEnded }: PlayerBarPro
           {formatTime(duration)}
         </span>
 
+        {/* Volume control */}
+        <div className="flex items-center gap-1 min-w-[80px]">
+          <span className="text-xs text-foreground-400">🔊</span>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.05"
+            defaultValue="1"
+            onChange={(e) => {
+              if (audioRef.current) {
+                audioRef.current.volume = parseFloat(e.target.value);
+              }
+            }}
+            className="w-16 h-1 accent-primary cursor-pointer"
+          />
+        </div>
+
         {/* Sample info */}
         <div className="flex flex-col items-end min-w-[200px] max-w-[300px]">
           <span className="text-sm text-foreground-700 truncate w-full text-right">

@@ -5,11 +5,17 @@ import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 import { CircularProgress, Input, Pagination, Select, SelectItem, Chip, Popover, PopoverTrigger, PopoverContent, Button } from "@nextui-org/react";
 import { fetch, ResponseType } from "@tauri-apps/api/http";
+import { startDrag } from "@crabnebula/tauri-plugin-drag";
+import { path } from "@tauri-apps/api";
+import * as wav from "node-wav";
 
 import { TracklibSound, TracklibSearchResponse, buildSoundSearchUrl } from "../../tracklib/api";
 import { SamplePlaybackContext } from "../playback";
 import { showToast } from "./Toast";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "../favorites";
+import { addToHistory, isDownloaded } from "../downloadHistory";
+import { cfg } from "../../config";
+import { writeSampleFile, checkFileExists, createPlaceholder } from "../../native";
 import Waveform from "./Waveform";
 
 interface TracklibBrowserProps {
@@ -72,6 +78,8 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
   const resultContainer = useRef<HTMLDivElement | null>(null);
 
   const LIMIT = 50;
+  const [browsingPack, setBrowsingPack] = useState<string | null>(null);
+  const [browsingPackSlug, setBrowsingPackSlug] = useState<string | null>(null);
 
   useEffect(() => {
     doSearch(query);
@@ -107,6 +115,7 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
     if (selectedTag) url += `&tags=${encodeURIComponent(selectedTag)}`;
     if (minBpm) url += `&min_tempo=${minBpm}`;
     if (maxBpm) url += `&max_tempo=${maxBpm}`;
+    if (browsingPackSlug) url += `&sample_pack=${encodeURIComponent(browsingPackSlug)}`;
 
     const resp = await fetch<TracklibSearchResponse<TracklibSound>>(url, {
       method: "GET",
@@ -134,6 +143,18 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
   }
 
   function applyBpm() {
+    doSearch(query, true);
+  }
+
+  function handleBrowsePack(packSlug: string, packName: string) {
+    setBrowsingPack(packName);
+    setBrowsingPackSlug(packSlug);
+    doSearch("", true);
+  }
+
+  function exitPackBrowse() {
+    setBrowsingPack(null);
+    setBrowsingPackSlug(null);
     doSearch(query, true);
   }
 
@@ -257,14 +278,23 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
         >
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h4 className="text-medium font-medium">Tracklib Sounds</h4>
-              <p className="text-small text-default-400">{totalCount.toLocaleString()} sounds</p>
+              <h4 className="text-medium font-medium">
+                {browsingPack ? `Pack: ${browsingPack}` : "Tracklib Sounds"}
+              </h4>
+              <div className="flex items-center gap-2">
+                <p className="text-small text-default-400">{totalCount.toLocaleString()} sounds</p>
+                {browsingPack && (
+                  <button onClick={exitPackBrowse} className="text-xs text-secondary hover:underline">
+                    ← Back to search
+                  </button>
+                )}
+              </div>
             </div>
             {loading && <CircularProgress aria-label="Loading..." />}
           </div>
 
           {results.map(sound => (
-            <TracklibSoundEntry key={sound.id} sound={sound} ctx={ctx} />
+            <TracklibSoundEntry key={sound.id} sound={sound} ctx={ctx} onBrowsePack={handleBrowsePack} />
           ))}
 
           <div className="w-full flex justify-center mt-4">
@@ -286,11 +316,13 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
 }
 
 // ---- Sound Entry ----
-function TracklibSoundEntry({ sound, ctx }: { sound: TracklibSound; ctx: SamplePlaybackContext }) {
+function TracklibSoundEntry({ sound, ctx, onBrowsePack }: { sound: TracklibSound; ctx: SamplePlaybackContext; onBrowsePack?: (slug: string, name: string) => void }) {
   const [fgLoading, setFgLoading] = useState(false);
   const [faved, setFaved] = useState(isFavorite(`tl-${sound.id}`));
+  const [downloaded, setDownloaded] = useState(isDownloaded(`tl-${sound.id}`));
   const playing = ctx.playingSampleUuid === `tl-${sound.id}`;
   const audioCache = useRef<string | null>(null);
+  const rawAudioCache = useRef<Uint8Array | null>(null);
 
   useEffect(() => {
     const unsub = onFavoritesChange(() => setFaved(isFavorite(`tl-${sound.id}`)));
@@ -325,7 +357,9 @@ function TracklibSoundEntry({ sound, ctx }: { sound: TracklibSound; ctx: SampleP
       const resp = await fetch<ArrayBuffer>(sound.play_url, {
         method: "GET", responseType: ResponseType.Binary,
       });
-      const blob = new Blob([new Uint8Array(resp.data)], { type: "audio/mpeg" });
+      const rawData = new Uint8Array(resp.data);
+      rawAudioCache.current = rawData;
+      const blob = new Blob([rawData], { type: "audio/mpeg" });
       const blobUrl = URL.createObjectURL(blob);
       audioCache.current = blobUrl;
 
@@ -345,12 +379,75 @@ function TracklibSoundEntry({ sound, ctx }: { sound: TracklibSound; ctx: SampleP
   }
 
   function getDisplayName(s: TracklibSound): string {
-    const path = s.library_path || s.name;
-    return path.split("/").pop() || s.name;
+    const p = s.library_path || s.name;
+    return p.split("/").pop() || s.name;
+  }
+
+  const sanitizePath = (x: string) => x.replace(/[<>:"|?* ]/g, "_");
+
+  async function handleDrag(ev: React.MouseEvent) {
+    const dragOrigin = document.elementFromPoint(ev.clientX, ev.clientY)?.parentElement;
+    if (dragOrigin?.dataset.draggable === "false") return;
+
+    const packName = sanitizePath(sound.sample_pack?.name || "Tracklib");
+    const fileName = sanitizePath(getDisplayName(sound));
+    const samplePath = `${packName}/${fileName}`;
+
+    const dragParams = {
+      item: [await path.join(cfg().sampleDir, samplePath)],
+      icon: ""
+    };
+
+    setFgLoading(true);
+    try {
+      // Ensure audio is fetched
+      if (!rawAudioCache.current) {
+        const resp = await fetch<ArrayBuffer>(sound.play_url, {
+          method: "GET", responseType: ResponseType.Binary,
+        });
+        rawAudioCache.current = new Uint8Array(resp.data);
+      }
+
+      if (!await checkFileExists(cfg().sampleDir, samplePath)) {
+        if (cfg().placeholders) {
+          await createPlaceholder(cfg().sampleDir, samplePath);
+          startDrag(dragParams);
+        }
+
+        // Decode MP3 to WAV
+        const actx = new AudioContext();
+        const samples = await actx.decodeAudioData(rawAudioCache.current!.buffer.slice(0));
+        const channels: Float32Array[] = [];
+        for (let i = 0; i < samples.numberOfChannels; i++) {
+          channels.push(samples.getChannelData(i));
+        }
+
+        await writeSampleFile(cfg().sampleDir, samplePath, wav.encode(channels, {
+          bitDepth: 16, sampleRate: samples.sampleRate
+        }));
+
+        if (!cfg().placeholders) {
+          startDrag(dragParams);
+        }
+
+        await addToHistory({
+          uuid: `tl-${sound.id}`, name: getDisplayName(sound),
+          packName: sound.sample_pack?.name || "Tracklib",
+          downloadedAt: new Date().toISOString(), filePath: samplePath,
+        });
+        setDownloaded(true);
+      } else {
+        startDrag(dragParams);
+      }
+    } catch (err) {
+      showToast(`Failed to download: ${err instanceof Error ? err.message : err}`, "error");
+    } finally {
+      setFgLoading(false);
+    }
   }
 
   return (
-    <div className="flex w-full px-3 py-2 gap-3 rounded items-center hover:bg-foreground-100 select-none">
+    <div className="flex w-full px-3 py-2 gap-3 rounded items-center hover:bg-foreground-100 select-none cursor-grab">
       {fgLoading && <style>{`* { cursor: wait }`}</style>}
 
       <div onClick={handlePlay} className="cursor-pointer w-7 flex-shrink-0">
@@ -375,22 +472,29 @@ function TracklibSoundEntry({ sound, ctx }: { sound: TracklibSound; ctx: SampleP
           : <HeartOutline className="w-5 h-5 text-foreground-300 hover:text-danger-400" />}
       </div>
 
-      <div className="hidden sm:block flex-shrink-0">
+      {downloaded && <span className="text-success-500 text-xs flex-shrink-0">✓</span>}
+
+      <div className="hidden sm:block flex-shrink-0" onMouseDown={handleDrag}>
         <Waveform data={Array.from({length: 40}, () => Math.random() * 0.8 + 0.2)}
           progress={0} width={100} height={22} />
       </div>
 
-      <div className="grow min-w-0">
+      <div className="grow min-w-0" onMouseDown={handleDrag}>
         <div className="text-sm truncate">{getDisplayName(sound)}</div>
         <div className="flex gap-1 flex-wrap">
-          {sound.sample_pack && <Chip size="sm" variant="flat" className="text-[10px]">{sound.sample_pack.name}</Chip>}
+          {sound.sample_pack && (
+            <Chip size="sm" variant="flat" className="text-[10px] cursor-pointer"
+              data-draggable="false"
+              onClick={(e) => { e.stopPropagation(); onBrowsePack?.(sound.sample_pack.path_pack, sound.sample_pack.name); }}
+            >{sound.sample_pack.name}</Chip>
+          )}
           {sound.genres.map(g => <Chip key={g.id} size="sm" variant="flat" color="secondary" className="text-[10px]">{g.name}</Chip>)}
           {sound.categories.map(c => <Chip key={c.id} size="sm" variant="flat" color="primary" className="text-[10px]">{c.name}</Chip>)}
           {sound.tags.slice(0, 3).map(t => <Chip key={t.id} size="sm" variant="flat" className="text-[10px]">{t.name}</Chip>)}
         </div>
       </div>
 
-      <div className="flex gap-3 items-center flex-shrink-0 text-xs text-foreground-500 font-medium">
+      <div className="flex gap-3 items-center flex-shrink-0 text-xs text-foreground-500 font-medium" onMouseDown={handleDrag}>
         <span className="capitalize">{sound.kind.replace("_", "-")}</span>
         {sound.tempo > 0 && <span>{sound.tempo} BPM</span>}
         {sound.key && <span>{sound.key}</span>}
