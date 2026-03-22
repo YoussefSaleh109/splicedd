@@ -6,7 +6,7 @@ import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
 import { CircularProgress, Input, Pagination, Select, SelectItem, Chip, Popover, PopoverTrigger, PopoverContent, Button } from "@nextui-org/react";
 import { fetch, ResponseType } from "@tauri-apps/api/http";
 
-import { TracklibSound, TracklibSearchResponse, buildSoundSearchUrl, buildTrackSearchUrl, TracklibTrack } from "../../tracklib/api";
+import { TracklibSound, TracklibSearchResponse, buildSoundSearchUrl } from "../../tracklib/api";
 import { SamplePlaybackContext } from "../playback";
 import { showToast } from "./Toast";
 import { isFavorite, toggleFavorite, onFavoritesChange } from "../favorites";
@@ -54,7 +54,7 @@ const TOP_TAGS = [
 export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<TracklibSound[]>([]);
-  const [trackResults, setTrackResults] = useState<TracklibTrack[]>([]);
+  
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -68,25 +68,21 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
   const [selectedTag, setSelectedTag] = useState<string>("");
   const [minBpm, setMinBpm] = useState<string>("");
   const [maxBpm, setMaxBpm] = useState<string>("");
-  const [browseMode, setBrowseMode] = useState<"sounds" | "songs">("sounds");
+  const browseMode = "sounds" as const;
   const resultContainer = useRef<HTMLDivElement | null>(null);
 
   const LIMIT = 50;
 
   useEffect(() => {
     doSearch(query);
-  }, [sortBy, soundType, page, selectedKey, selectedGenre, selectedCategory, selectedTag, browseMode]);
+  }, [sortBy, soundType, page, selectedKey, selectedGenre, selectedCategory, selectedTag]);
 
   async function doSearch(q: string, resetPage = false) {
     setLoading(true);
     const currentPage = resetPage ? 1 : page;
 
     try {
-      if (browseMode === "songs") {
-        await searchTracks(q, currentPage);
-      } else {
-        await searchSounds(q, currentPage);
-      }
+      await searchSounds(q, currentPage);
       if (resetPage) setPage(1);
     } catch (err) {
       showToast(`Tracklib search failed: ${err}`, "error");
@@ -118,30 +114,6 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
     });
 
     setResults(resp.data.results);
-    setTrackResults([]);
-    setTotalCount(resp.data.count);
-    setTotalPages(Math.ceil(Math.min(resp.data.count, 10000) / LIMIT));
-  }
-
-  async function searchTracks(q: string, currentPage: number) {
-    let url = buildTrackSearchUrl({
-      query: q || undefined,
-      limit: LIMIT,
-      offset: (currentPage - 1) * LIMIT,
-      ordering: sortBy === "?" ? undefined : sortBy,
-    });
-
-    if (selectedKey) url += `&key=${encodeURIComponent(selectedKey)}`;
-    if (minBpm) url += `&min_bpm=${minBpm}`;
-    if (maxBpm) url += `&max_bpm=${maxBpm}`;
-
-    const resp = await fetch<TracklibSearchResponse<TracklibTrack>>(url, {
-      method: "GET",
-      responseType: ResponseType.JSON,
-    });
-
-    setTrackResults(resp.data.results);
-    setResults([]);
     setTotalCount(resp.data.count);
     setTotalPages(Math.ceil(Math.min(resp.data.count, 10000) / LIMIT));
   }
@@ -167,37 +139,14 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      {/* Browse mode toggle */}
-      <div className="flex gap-2 items-center">
-        <div className="flex bg-content1 rounded-lg p-1 gap-1">
-          <button
-            onClick={() => setBrowseMode("sounds")}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              browseMode === "sounds" ? "bg-secondary text-white" : "text-foreground-400 hover:text-foreground-600"
-            }`}
-          >
-            🥁 Sounds
-          </button>
-          <button
-            onClick={() => setBrowseMode("songs")}
-            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
-              browseMode === "songs" ? "bg-secondary text-white" : "text-foreground-400 hover:text-foreground-600"
-            }`}
-          >
-            🎵 Songs
-          </button>
-        </div>
-        <span className="text-xs text-foreground-400">
-          {browseMode === "sounds" ? "One-shots, loops, FX & drums" : "Full songs for sampling (preview requires account)"}
-        </span>
-      </div>
+      
 
       {/* Search bar */}
       <div className="flex gap-2">
         <Input
           type="text"
           aria-label="Search Tracklib"
-          placeholder={browseMode === "sounds" ? "Search sounds..." : "Search songs..."}
+          placeholder="Search sounds..."
           labelPlacement="outside"
           variant="bordered"
           value={query}
@@ -322,39 +271,14 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
             <Pagination variant="bordered" total={totalPages} page={page} onChange={changePage} />
           </div>
         </div>
-      ) : browseMode === "songs" && trackResults.length > 0 ? (
-        <div ref={resultContainer}
-          className="my-2 mb-16 overflow-y-scroll shadow-small bg-content1 p-6 rounded flex flex-col gap-1"
-        >
-          <div className="flex justify-between items-center mb-4">
-            <div>
-              <h4 className="text-medium font-medium">Tracklib Songs</h4>
-              <p className="text-small text-default-400">{totalCount.toLocaleString()} songs</p>
-              <p className="text-[10px] text-foreground-300">⚠️ Song previews require a Tracklib account</p>
-            </div>
-            {loading && <CircularProgress aria-label="Loading..." />}
-          </div>
-
-          {trackResults.map(track => (
-            <TracklibTrackEntry key={track.id} track={track} />
-          ))}
-
-          <div className="w-full flex justify-center mt-4">
-            <Pagination variant="bordered" total={totalPages} page={page} onChange={changePage} />
-          </div>
-        </div>
       ) : loading ? (
         <div className="flex items-center justify-center h-full">
           <CircularProgress aria-label="Loading..." />
         </div>
       ) : (
         <div className="flex flex-col items-center h-full justify-center space-y-4">
-          <p className="text-foreground-400">
-            {browseMode === "sounds" ? "Search Tracklib's catalog of sounds" : "Search Tracklib's catalog of songs"}
-          </p>
-          <p className="text-foreground-300 text-sm">
-            {browseMode === "sounds" ? "One-shots, loops, FX and more" : "Full songs for sampling — spanning 100 years of music"}
-          </p>
+          <p className="text-foreground-400">Search Tracklib's catalog of sounds</p>
+          <p className="text-foreground-300 text-sm">One-shots, loops, FX and more</p>
         </div>
       )}
     </div>
@@ -476,33 +400,4 @@ function TracklibSoundEntry({ sound, ctx }: { sound: TracklibSound; ctx: SampleP
   );
 }
 
-// ---- Track/Song Entry (no preview - needs auth) ----
-function TracklibTrackEntry({ track }: { track: TracklibTrack }) {
-  const song = track.song;
-  const artists = song?.artists?.map(a => a.name).join(", ") || "Unknown";
-  const genres: string[] = song?.genres?.map((g: { name: string }) => g.name) || [];
 
-  return (
-    <div className="flex w-full px-3 py-2 gap-3 rounded items-center hover:bg-foreground-100 select-none">
-      {/* Cover art placeholder */}
-      <div className="w-10 h-10 bg-foreground-200 rounded flex items-center justify-center text-lg flex-shrink-0">
-        🎵
-      </div>
-
-      <div className="grow min-w-0">
-        <div className="text-sm font-medium truncate">{song?.title || "Unknown"}</div>
-        <div className="text-xs text-foreground-400 truncate">{artists}</div>
-        <div className="flex gap-1 flex-wrap mt-0.5">
-          {genres.map(g => <Chip key={g} size="sm" variant="flat" color="secondary" className="text-[10px]">{g}</Chip>)}
-          {track.types?.map(t => <Chip key={t.id} size="sm" variant="flat" className="text-[10px]">{t.name}</Chip>)}
-        </div>
-      </div>
-
-      <div className="flex gap-3 items-center flex-shrink-0 text-xs text-foreground-500 font-medium">
-        {track.BPM > 0 && <span>{track.BPM} BPM</span>}
-        {song?.release_year && <span>{song.release_year}</span>}
-        <span>{Math.floor(track.length / 60)}:{(track.length % 60).toString().padStart(2, "0")}</span>
-      </div>
-    </div>
-  );
-}
