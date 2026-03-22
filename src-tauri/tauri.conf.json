@@ -16,7 +16,11 @@
         "all": true,
         "scope": [
           "https://spliceproduction.s3.*.amazonaws.com/**",
-          "https://surfaces-graphql.splice.com/graphql"
+          "https://surfaces-graphql.splice.com/graphql",
+          "https://www.tracklib.com/api/**",
+          "https://api.tracklib.com/**",
+          "https://da9ovlny9o3pu.cloudfront.net/**",
+          "https://*.cloudfront.net/**"
         ]
       },
       "shell": {
