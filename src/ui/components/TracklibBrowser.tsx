@@ -115,7 +115,7 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
     if (selectedTag) url += `&tags=${encodeURIComponent(selectedTag)}`;
     if (minBpm) url += `&min_tempo=${minBpm}`;
     if (maxBpm) url += `&max_tempo=${maxBpm}`;
-    if (browsingPackSlug) url += `&sample_pack=${encodeURIComponent(browsingPackSlug)}`;
+    if (browsingPackSlug) url += `&pack_slug=${encodeURIComponent(browsingPackSlug)}`;
 
     const resp = await fetch<TracklibSearchResponse<TracklibSound>>(url, {
       method: "GET",
@@ -236,28 +236,56 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
           </>
         )}
 
-        <Select placeholder="Key" aria-label="Key" variant="bordered"
-          selectedKeys={selectedKey ? [selectedKey] : []}
-          onChange={e => { setSelectedKey(e.target.value); }}
-          className="max-w-28"
-        >
-          {AVAILABLE_KEYS.map(k => (
-            <SelectItem key={k}>{k}</SelectItem>
-          ))}
-        </Select>
+        <Popover placement="bottom" showArrow>
+          <PopoverTrigger>
+            <Button variant="bordered" className="min-w-24">
+              {selectedKey || "Key"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="p-4">
+            <div className="grid grid-cols-6 gap-1 max-w-[280px]">
+              {AVAILABLE_KEYS.map(k => (
+                <button key={k}
+                  onClick={() => { setSelectedKey(selectedKey === k ? "" : k); }}
+                  className={`px-2 py-1.5 text-xs rounded transition-colors ${
+                    selectedKey === k
+                      ? "bg-secondary text-white"
+                      : "bg-foreground-100 hover:bg-foreground-200 text-foreground-600"
+                  }`}
+                >
+                  {k}
+                </button>
+              ))}
+            </div>
+            {selectedKey && (
+              <button onClick={() => setSelectedKey("")}
+                className="mt-2 text-xs text-danger-500 hover:underline w-full text-center">
+                Clear key
+              </button>
+            )}
+          </PopoverContent>
+        </Popover>
 
         <Popover placement="bottom" showArrow>
           <PopoverTrigger>
-            <Button variant="bordered" size="sm" className="min-w-24">
-              {minBpm || maxBpm ? `${minBpm || "?"}-${maxBpm || "?"} BPM` : "BPM"}
+            <Button variant="bordered" className="min-w-28">
+              {minBpm || maxBpm ? `${minBpm || "?"} - ${maxBpm || "?"} BPM` : "BPM"}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="p-4 flex flex-col gap-2">
-            <Input type="number" label="Min BPM" size="sm" value={minBpm}
-              onChange={e => setMinBpm(e.target.value)} />
-            <Input type="number" label="Max BPM" size="sm" value={maxBpm}
-              onChange={e => setMaxBpm(e.target.value)} />
-            <Button size="sm" color="primary" onClick={applyBpm}>Apply</Button>
+          <PopoverContent className="p-4 flex flex-col gap-3 min-w-[200px]">
+            <div className="flex gap-2 items-center">
+              <Input type="number" label="Min" size="sm" variant="bordered"
+                placeholder="60" value={minBpm}
+                onChange={e => setMinBpm(e.target.value)} className="w-20" />
+              <span className="text-foreground-400">to</span>
+              <Input type="number" label="Max" size="sm" variant="bordered"
+                placeholder="200" value={maxBpm}
+                onChange={e => setMaxBpm(e.target.value)} className="w-20" />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" color="secondary" onClick={applyBpm} className="flex-1">Apply</Button>
+              <Button size="sm" variant="flat" onClick={() => { setMinBpm(""); setMaxBpm(""); applyBpm(); }} className="flex-1">Clear</Button>
+            </div>
           </PopoverContent>
         </Popover>
 
@@ -485,7 +513,7 @@ function TracklibSoundEntry({ sound, ctx, onBrowsePack }: { sound: TracklibSound
           {sound.sample_pack && (
             <Chip size="sm" variant="flat" className="text-[10px] cursor-pointer"
               data-draggable="false"
-              onClick={(e) => { e.stopPropagation(); onBrowsePack?.(sound.sample_pack.path_pack, sound.sample_pack.name); }}
+              onClick={(e) => { e.stopPropagation(); onBrowsePack?.(sound.sample_pack.slug || sound.sample_pack.path_pack, sound.sample_pack.name); }}
             >{sound.sample_pack.name}</Chip>
           )}
           {sound.genres.map(g => <Chip key={g.id} size="sm" variant="flat" color="secondary" className="text-[10px]">{g.name}</Chip>)}

@@ -21,6 +21,7 @@ export interface TracklibSound {
     name: string;
     path_pack: string;
     path_origin: string;
+    slug?: string;
   };
   genres: { id: number; name: string }[];
   categories: { id: number; name: string }[];
