@@ -509,18 +509,24 @@ function TracklibSoundEntry({ sound, ctx, onBrowsePack }: { sound: TracklibSound
 
       <div className="grow min-w-0" onMouseDown={handleDrag}>
         <div className="text-sm truncate">{getDisplayName(sound)}</div>
-        <div className="flex gap-1 flex-wrap">
-          {sound.sample_pack && (
-            <Chip size="sm" variant="flat" className="text-[10px] cursor-pointer"
-              data-draggable="false"
-              onClick={(e) => { e.stopPropagation(); onBrowsePack?.(sound.sample_pack.slug || sound.sample_pack.path_pack, sound.sample_pack.name); }}
-            >{sound.sample_pack.name}</Chip>
-          )}
+        <div className="flex gap-1 flex-wrap items-center">
           {sound.genres.map(g => <Chip key={g.id} size="sm" variant="flat" color="secondary" className="text-[10px]">{g.name}</Chip>)}
           {sound.categories.map(c => <Chip key={c.id} size="sm" variant="flat" color="primary" className="text-[10px]">{c.name}</Chip>)}
           {sound.tags.slice(0, 3).map(t => <Chip key={t.id} size="sm" variant="flat" className="text-[10px]">{t.name}</Chip>)}
         </div>
       </div>
+
+      {/* Pack button - separate from drag area */}
+      {sound.sample_pack && onBrowsePack && (
+        <button
+          data-draggable="false"
+          onClick={(e) => { e.stopPropagation(); onBrowsePack(sound.sample_pack.slug || sound.sample_pack.path_pack, sound.sample_pack.name); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="text-[10px] px-2 py-1 rounded bg-secondary-100 hover:bg-secondary-200 text-secondary-700 transition-colors cursor-pointer flex-shrink-0 border border-secondary-300"
+        >
+          📦 {sound.sample_pack.name.length > 20 ? sound.sample_pack.name.slice(0, 18) + "…" : sound.sample_pack.name}
+        </button>
+      )}
 
       <div className="flex gap-3 items-center flex-shrink-0 text-xs text-foreground-500 font-medium" onMouseDown={handleDrag}>
         <span className="capitalize">{sound.kind.replace("_", "-")}</span>
