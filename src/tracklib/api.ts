@@ -86,7 +86,7 @@ export function buildSoundSearchUrl(params: {
 }): string {
   const searchParams = new URLSearchParams();
 
-  if (params.query) searchParams.set("query", params.query);
+  if (params.query) searchParams.set("search", params.query);
   if (params.limit) searchParams.set("limit", params.limit.toString());
   if (params.offset) searchParams.set("offset", params.offset.toString());
   if (params.kind) searchParams.set("kind", params.kind);
@@ -123,7 +123,7 @@ export function buildTrackSearchUrl(params: {
 }): string {
   const searchParams = new URLSearchParams();
 
-  if (params.query) searchParams.set("query", params.query);
+  if (params.query) searchParams.set("search", params.query);
   if (params.limit) searchParams.set("limit", params.limit.toString());
   if (params.offset) searchParams.set("offset", params.offset.toString());
   if (params.key) searchParams.set("key", params.key);
