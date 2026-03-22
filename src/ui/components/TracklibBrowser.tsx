@@ -3,7 +3,7 @@ import { SearchIcon } from "@nextui-org/shared-icons";
 import { HeartIcon } from "@heroicons/react/20/solid";
 import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
-import { CircularProgress, Input, Pagination, Select, SelectItem, Chip, Popover, PopoverTrigger, PopoverContent, Button, Radio, RadioGroup } from "@nextui-org/react";
+import { CircularProgress, Input, Pagination, Select, SelectItem, Chip, Popover, PopoverTrigger, PopoverContent, Button } from "@nextui-org/react";
 import { fetch, ResponseType } from "@tauri-apps/api/http";
 
 import { TracklibSound, TracklibSearchResponse, buildSoundSearchUrl, buildTrackSearchUrl, TracklibTrack } from "../../tracklib/api";
@@ -480,7 +480,7 @@ function TracklibSoundEntry({ sound, ctx }: { sound: TracklibSound; ctx: SampleP
 function TracklibTrackEntry({ track }: { track: TracklibTrack }) {
   const song = track.song;
   const artists = song?.artists?.map(a => a.name).join(", ") || "Unknown";
-  const genres = song?.genres?.map(g => g.name) || [];
+  const genres: string[] = song?.genres?.map((g: { name: string }) => g.name) || [];
 
   return (
     <div className="flex w-full px-3 py-2 gap-3 rounded items-center hover:bg-foreground-100 select-none">

@@ -43,6 +43,7 @@ export interface TracklibTrack {
     release_year: number;
     slug: string;
     artists: { id: number; name: string; slug: string }[];
+    genres?: { id: number; name: string; slug: string }[];
     cover_art?: string;
     play_url?: string;
   };
