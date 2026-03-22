@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Button } from "@nextui-org/button";
-import { SearchIcon, ChevronDownIcon } from "@nextui-org/shared-icons";
+import { SearchIcon } from "@nextui-org/shared-icons";
 import { HeartIcon } from "@heroicons/react/20/solid";
 import { HeartIcon as HeartOutline } from "@heroicons/react/24/outline";
 import { PlayIcon, StopIcon } from "@heroicons/react/20/solid";
-import { CircularProgress, Input, Pagination, Select, SelectItem, Tooltip, Chip } from "@nextui-org/react";
+import { CircularProgress, Input, Pagination, Select, SelectItem, Chip } from "@nextui-org/react";
 import { fetch, ResponseType } from "@tauri-apps/api/http";
 
 import { TracklibSound, TracklibSearchResponse, buildSoundSearchUrl } from "../../tracklib/api";
