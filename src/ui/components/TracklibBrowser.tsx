@@ -108,13 +108,13 @@ export default function TracklibBrowser({ ctx }: TracklibBrowserProps) {
       ordering: sortBy,
     });
 
-    // Add filters as query params
+    // Add filters — Tracklib uses __in suffix and __ for multi-values
     if (selectedKey) url += `&key=${encodeURIComponent(selectedKey)}`;
-    if (selectedGenre) url += `&genres=${encodeURIComponent(selectedGenre)}`;
-    if (selectedCategory) url += `&categories=${encodeURIComponent(selectedCategory)}`;
-    if (selectedTag) url += `&tags=${encodeURIComponent(selectedTag)}`;
-    if (minBpm) url += `&min_tempo=${minBpm}`;
-    if (maxBpm) url += `&max_tempo=${maxBpm}`;
+    if (selectedGenre) url += `&genre_raw__in=${encodeURIComponent(selectedGenre)}`;
+    if (selectedCategory) url += `&category_raw__in=${encodeURIComponent(selectedCategory)}`;
+    if (selectedTag) url += `&tag_raw__in=${encodeURIComponent(selectedTag)}`;
+    if (minBpm) url += `&tempo__gt=${minBpm}`;
+    if (maxBpm) url += `&tempo__lt=${maxBpm}`;
     if (browsingPackSlug) url += `&pack_slug=${encodeURIComponent(browsingPackSlug)}`;
 
     const resp = await fetch<TracklibSearchResponse<TracklibSound>>(url, {
