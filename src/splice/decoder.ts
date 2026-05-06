@@ -12,10 +12,12 @@ export function decodeSpliceAudio(data: Uint8Array) {
 
   let encodingData = data.subarray(10, 28);
 
-  const encodeBlkArr = [];
-  for (let i = 0; i < encodingData.length; i += 32768) {
-    encodeBlkArr.push(String.fromCharCode(...Array.from(encodingData.subarray(i, i + 32768))));
-  }
+for (let i = 0; i < encodingData.length; i += 32768) {
+    const chunk = encodingData.subarray(i, Math.min(i + 32768, encodingData.length));
+    if (chunk.length > 0) {
+        encodeBlkArr.push(String.fromCharCode(...Array.from(chunk)));
+    }
+}
 
   const encodeBlk = encodeBlkArr.join("");
   const audioData = data.slice(28);
